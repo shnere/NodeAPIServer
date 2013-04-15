@@ -18,7 +18,8 @@ MongoDB + xbee
 		protocol_id: ,
 		pan_id: ,
 		network_address: ,
-		node_identifier: 
+		node_identifier: ,
+		status: 
 	}
 
 ### Data
@@ -42,6 +43,7 @@ Each device implements a protocol that contains a data type
 	
 ### Rules
 Actions of the type "if this then that". Can involve two different devices
+
 	{
 		_id: ,
 		origin_id: ,
