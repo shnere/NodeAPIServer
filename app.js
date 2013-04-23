@@ -41,6 +41,13 @@ app.get('/space/:id', domo.getSpace); // Read
 app.put('/space/:id', domo.updateSpace); // Update
 app.delete('/space/:id', domo.deleteSpace); // Delete
 
+/* Protocols
+---------------------- */
+app.post('/protocol', domo.addProtocol); // Create
+app.get('/protocol/:id', domo.getProtocol); // Read
+app.put('/protocol/:id', domo.updateProtocol); // Update
+app.delete('/protocol/:id', domo.deleteProtocol); // Delete
+
 
 app.listen(3000);
 console.log('Listening on port 3000');
