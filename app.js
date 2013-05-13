@@ -29,6 +29,8 @@ app.post('/device/data/:id', domo.pushData);
 
 /* Rules
 ---------------------- */
+app.get('/rules', domo.getRules); // GetAll
+
 app.post('/rule', domo.addRule); // Create
 app.get('/rule/:id', domo.getRule); // Read
 app.put('/rule/:id', domo.updateRule); // Update
@@ -36,6 +38,8 @@ app.delete('/rule/:id', domo.deleteRule); // Delete
 
 /* Spaces
 ---------------------- */
+app.get('/spaces', domo.getSpaces); // GetAll
+
 app.post('/space', domo.addSpace); // Create
 app.get('/space/:id', domo.getSpace); // Read
 app.put('/space/:id', domo.updateSpace); // Update
@@ -43,6 +47,8 @@ app.delete('/space/:id', domo.deleteSpace); // Delete
 
 /* Protocols
 ---------------------- */
+app.get('/protocols', domo.getProtocols); // GetAll
+
 app.post('/protocol', domo.addProtocol); // Create
 app.get('/protocol/:id', domo.getProtocol); // Read
 app.put('/protocol/:id', domo.updateProtocol); // Update

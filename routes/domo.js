@@ -4,22 +4,24 @@ var Server = mongo.Server,
 	Db = mongo.Db,
 	BSON = mongo.BSONPure;
 
-var server = new Server('localhost', 27017, {auto_reconnect: true});
-db = new Db('domodb', server);
-
+var server = new Server('widmore.mongohq.com', 10000, {auto_reconnect: true});
+db = new Db('Domo', server);
 
 // Conexion a la db
-db.open(function(err, db){
-	if(!err){
-		console.log("Connected to 'domodb' database");
-		// db.createCollection('spaces', {strict : true}, function(err, collection) {
-		// 	if (err) {
-		// 		console.log("The 'wines' collection doesn't exist. Creating it with sample data...");
-		// 		populateDB();
-		// 	}
-		// });
-	}
+db.open(function(err, p_client) {
+  //Notice the USERNAME and PASSWORD!
+  db.authenticate('domo', 'arigato', function(err) {
+   //Change error handler when going into production 
+   if (err) console.log(err);
+    
+    var collection = new mongo.Collection(db, 'test_collection');
+    collection.find({}, {limit:10}).toArray(function(err, docs) {
+      //In an array, this will log all your documents you added before we tested this
+      console.dir(docs);
+    });
+  });
 });
+
 
 /* API Functions
 -------------------------------------------------- */
@@ -96,11 +98,85 @@ exports.getDeviceData = function(req, res) {}
 
 exports.getDeviceCurrentData = function(req, res) {}
 
-exports.pushData = function(req, res) {}
+exports.pushData = function(req, res) {
+	// Aqui va la logica de setPin
+	
+	
+	var serialport = require("serialport");
+
+	var serialPort = new serialport.SerialPort("/dev/ttyUSB0", {
+		baudRate: 9600,
+		dataBits: 8,
+		parity: 'none',
+		stopBits: 1,
+		flowControl: false,
+		parser: serialport.parsers.readline("\n") 
+	});
+
+	serialPort.on("open", function () {
+	  console.log('open');
+	  serialPort.on('data', function(data) {
+	    console.log('data received: ' + data);
+	  });  
+
+	function setPin(xbee_addr, pin, state){
+		// Valores predefinidos
+		var frame = [0x7E, 0x00, 0x10, 0x17, 0x01];
+		var checksum = 0x00;
+
+		// Append la direccion
+		frame = frame.concat(xbee_addr);
+
+		// FF FE valores default
+		frame.push(0xFF, 0xFE);
+
+		frame.push(0x02); // 0x02 – Apply changes on remote. (If not set, AC command 
+	                    // must be sent before changes will take effect.)
+
+		// Pusheo de pin: D#
+		frame.push(0x44);  //D
+		frame.push(pin);  //0,1,2,3...   1 = 31 en ascii
+
+		frame.push(state); //4 apaga, 5 enciende
+
+		for(i = 3; i < 19; i++){
+			checksum += frame[i];
+		}
+		//console.log("Checksum: " + checksum.toString(16));
+		// 54F to string le quitas el 5 y se lo restas a FF
+		checksum = parseInt(checksum.toString(16).substring(1),16);
+		//console.log("Checksum: " + checksum);
+		checksum = 0xFF - checksum;
+		//console.log("Resto 0xff y da: " + checksum);
+		frame.push(checksum);
+
+		return frame;
+	}
+
+	var intArray = setPin([0x00,0x13,0xa2,0x00,0x40,0x91,0x8c,0xad], 0x31, 0x05);
+
+	serialPort.write(intArray, function(err, results) {
+	    console.log('err ' + err);
+	    console.log('results ' + results);
+	  });
+
+	});
+	
+	
+	
+}
 
 
 /* Rules
 ---------------------- */
+exports.getRules = function(req, res) {
+	db.collection('rules', function(err, collection) {
+		collection.find().toArray(function(err, items) {
+			res.send(items);
+		});
+	});
+}
+
 exports.addRule = function(req, res) {
 	var rule = req.body;
 	console.log('Adding rule: ' + JSON.stringify(rule));
@@ -157,6 +233,14 @@ exports.deleteRule = function(req, res) {
 
 /* Spaces
 ---------------------- */
+exports.getSpaces = function(req, res) {
+	db.collection('spaces', function(err, collection) {
+		collection.find().toArray(function(err, items) {
+			res.send(items);
+		});
+	});
+}
+
 exports.addSpace = function(req, res) {
 	var space = req.body;
 	console.log('Adding space: ' + JSON.stringify(space));
@@ -213,6 +297,15 @@ exports.deleteSpace = function(req, res) {
 
 /* Protocols
 ---------------------- */
+exports.getProtocols = function(req, res) {
+	db.collection('protocols', function(err, collection) {
+		collection.find().toArray(function(err, items) {
+			res.send(items);
+		});
+	});
+}
+
+
 exports.addProtocol = function(req, res) {
 	var protocol = req.body;
 	console.log('Adding protocol: ' + JSON.stringify(space));
