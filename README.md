@@ -48,6 +48,8 @@ Each device implements a protocol that contains a data type
 	{
 		_id: ObjectId(),
 		name: "",
+		min_value: ,
+		max_value: ,
 		data_type: "",
 		units: ""
 	}
