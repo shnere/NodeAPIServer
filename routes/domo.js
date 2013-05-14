@@ -1,4 +1,7 @@
 var mongo = require('mongodb');
+var serialport = require("serialport");
+
+var default_port = "/dev/ttyUSB0";
 
 var Server = mongo.Server,
 	Db = mongo.Db,
@@ -31,7 +34,7 @@ db.open(function(err, p_client) {
 exports.getDevices = function(req, res) {
 	db.collection('devices', function(err, collection) {
 		collection.find().toArray(function(err, items) {
-			res.send(items);
+			res.jsonp(items);
 		});
 	});
 }
@@ -55,7 +58,7 @@ exports.getDevice = function(req, res) {
 	var id = req.params.id;
 	db.collection('devices', function(err, collection) {
 		collection.findOne({'_id':new BSON.ObjectID(id)}, function(err, item) {
-			res.send(item);
+			res.jsonp(item);
 		});
 	});
 }
@@ -94,76 +97,100 @@ exports.deleteDevice = function(req, res) {
 	});
 }
 
-exports.getDeviceData = function(req, res) {}
+exports.getDeviceData = function(req, res) {
+	var id = req.params.id;
+	db.collection('data', function(err, collection) {
+		collection.find({'device_id':new BSON.ObjectID(id)}, function(err, item) {
+			res.send(item);
+		});
+	});
+}
 
 exports.getDeviceCurrentData = function(req, res) {}
 
 exports.pushData = function(req, res) {
-	// Aqui va la logica de setPin
-	
-	
-	var serialport = require("serialport");
+	var id = req.params.id;
 
-	var serialPort = new serialport.SerialPort("/dev/ttyUSB0", {
-		baudRate: 9600,
-		dataBits: 8,
-		parity: 'none',
-		stopBits: 1,
-		flowControl: false,
-		parser: serialport.parsers.readline("\n") 
+	// data.value
+	var data = req.body;
+
+	// Get device data
+	db.collection('devices', function(err, collection) {
+		collection.findOne({'_id':new BSON.ObjectID(req.params.id)}, function(err, item) {
+			if(item._id == null){
+				res.send({'error':'An error has occurred'});
+			}
+			var xbee_addr = item.node_identifier.split(" ");
+			for(var i = 0; i < xbee_addr.length; i++){
+				xbee_addr[i] = parseInt(xbee_addr[i], 16);
+			}
+			console.log(xbee_addr);
+			// Abre puerto serial, crea valor y lo manda
+			
+			var serialPort = new serialport.SerialPort(default_port, {
+				baudRate: 9600,
+				dataBits: 8,
+				parity: 'none',
+				stopBits: 1,
+				flowControl: false,
+				parser: serialport.parsers.readline("\n") 
+			});
+			
+			serialPort.on("open", function () {
+				console.log('open');
+				
+				var valor = data.value;
+				valor = parseInt(valor);
+				console.log("Typeof " + typeof(valor) +" Mando valor: " + valor.toString(16));
+
+				var intArray = setPinPWM(xbee_addr, 0x31, valor);
+				console.log(intArray);
+
+				serialPort.write(intArray, function(err, results) {
+				    console.log('err ' + err);
+				    console.log('results ' + results);
+				  });
+
+				serialPort.close();
+
+				res.jsonp({'success':'Request completed'});
+				
+			});
+			
+		});
 	});
+}
 
-	serialPort.on("open", function () {
-	  console.log('open');
-	  serialPort.on('data', function(data) {
-	    console.log('data received: ' + data);
-	  });  
+exports.addData = function(req, res) {
+	var data = req.body;
+	// Get unix time
+	var unix = Math.round(+new Date()/1000);
+	// Add device_id and current date_time
+	data.device_id = new BSON.ObjectID(req.params.id);
+	data.date_time = unix;
 
-	function setPin(xbee_addr, pin, state){
-		// Valores predefinidos
-		var frame = [0x7E, 0x00, 0x10, 0x17, 0x01];
-		var checksum = 0x00;
-
-		// Append la direccion
-		frame = frame.concat(xbee_addr);
-
-		// FF FE valores default
-		frame.push(0xFF, 0xFE);
-
-		frame.push(0x02); // 0x02 – Apply changes on remote. (If not set, AC command 
-	                    // must be sent before changes will take effect.)
-
-		// Pusheo de pin: D#
-		frame.push(0x44);  //D
-		frame.push(pin);  //0,1,2,3...   1 = 31 en ascii
-
-		frame.push(state); //4 apaga, 5 enciende
-
-		for(i = 3; i < 19; i++){
-			checksum += frame[i];
-		}
-		//console.log("Checksum: " + checksum.toString(16));
-		// 54F to string le quitas el 5 y se lo restas a FF
-		checksum = parseInt(checksum.toString(16).substring(1),16);
-		//console.log("Checksum: " + checksum);
-		checksum = 0xFF - checksum;
-		//console.log("Resto 0xff y da: " + checksum);
-		frame.push(checksum);
-
-		return frame;
-	}
-
-	var intArray = setPin([0x00,0x13,0xa2,0x00,0x40,0x91,0x8c,0xad], 0x31, 0x05);
-
-	serialPort.write(intArray, function(err, results) {
-	    console.log('err ' + err);
-	    console.log('results ' + results);
-	  });
-
+	// Get device data
+	db.collection('devices', function(err, collection) {
+		collection.findOne({'_id':new BSON.ObjectID(req.params.id)}, function(err, item) {
+			if(item._id == null){
+				res.send({'error':'An error has occurred'});
+			}
+			var temp = item.protocol_id;
+			data.protocol_id = temp;
+		});
 	});
 	
 	
-	
+	db.collection('data', function(err, collection) {
+		collection.insert(data, {safe:true}, function(err, result) {
+			if (err) {
+				res.jsonp({'error':'An error has occurred'});
+			} else {
+				console.log('Success: ' + JSON.stringify(result[0]));
+				res.jsonp(result[0]);
+			}
+		});
+	});
 }
 
 
@@ -172,7 +199,7 @@ exports.pushData = function(req, res) {
 exports.getRules = function(req, res) {
 	db.collection('rules', function(err, collection) {
 		collection.find().toArray(function(err, items) {
-			res.send(items);
+			res.jsonp(items);
 		});
 	});
 }
@@ -236,7 +263,7 @@ exports.deleteRule = function(req, res) {
 exports.getSpaces = function(req, res) {
 	db.collection('spaces', function(err, collection) {
 		collection.find().toArray(function(err, items) {
-			res.send(items);
+			res.jsonp(items);
 		});
 	});
 }
@@ -300,7 +327,7 @@ exports.deleteSpace = function(req, res) {
 exports.getProtocols = function(req, res) {
 	db.collection('protocols', function(err, collection) {
 		collection.find().toArray(function(err, items) {
-			res.send(items);
+			res.jsonp(items);
 		});
 	});
 }
@@ -308,7 +335,7 @@ exports.getProtocols = function(req, res) {
 
 exports.addProtocol = function(req, res) {
 	var protocol = req.body;
-	console.log('Adding protocol: ' + JSON.stringify(space));
+	console.log('Adding protocol: ' + JSON.stringify(protocol));
 	db.collection('protocols', function(err, collection) {
 		collection.insert(protocol, {safe:true}, function(err, result) {
 			if (err) {
@@ -360,4 +387,76 @@ exports.deleteProtocol = function(req, res) {
 	});
 }
 
-// params req.params.NOMBREPARAM
+// Util Functions
+
+function setPin(xbee_addr, pin, state){
+	// Valores predefinidos
+	var frame = [0x7E, 0x00, 0x10, 0x17, 0x01];
+	var checksum = 0x00;
+
+	// Append la direccion
+	frame = frame.concat(xbee_addr);
+
+	// FF FE valores default
+	frame.push(0xFF, 0xFE);
+
+	frame.push(0x02); // 0x02 – Apply changes on remote. (If not set, AC command 
+                    // must be sent before changes will take effect.)
+
+	// Pusheo de pin: D#
+	frame.push(0x4D);  
+	frame.push(pin);  //0,1,2,3...   1 = 31 en ascii
+
+	frame.push(state); //4 apaga, 5 enciende
+
+	for(i = 3; i < 19; i++){
+		checksum += frame[i];
+	}
+	//console.log("Checksum: " + checksum.toString(16));
+	// 54F to string le quitas el 5 y se lo restas a FF
+	checksum = parseInt(checksum.toString(16).substring(1),16);
+	//console.log("Checksum: " + checksum);
+	checksum = 0xFF - checksum;
+	//console.log("Resto 0xff y da: " + checksum);
+	frame.push(checksum);
+
+	return frame;
+}
+
+function setPinPWM(xbee_addr, pin, state){
+	// 0x7E 0x00 0x11 0x17 0x01 [Address] 0xFF 0xFE 0x02 'M' pin [0x00-0x3FF en dos bytes] Checksum
+	// Valores predefinidos
+	if(state < 0x100){
+		return setPin(xbee_addr, pin, state);
+	}
+	var frame = [0x7E, 0x00, 0x11, 0x17, 0x01];
+	var checksum = 0x00;
+
+	// Append la direccion
+	frame = frame.concat(xbee_addr);
+
+	// FF FE valores default
+	frame.push(0xFF, 0xFE);
+
+	frame.push(0x02); // 0x02 – Apply changes on remote. (If not set, AC command 
+                    // must be sent before changes will take effect.)
+
+	frame.push(0x4D);  //'M'
+	frame.push(pin);  //0,1,2,3...   1 = 31 en ascii
+
+	frame.push(parseInt(state.toString(16).substring(0,1), 16)); // PWM PRIMER BYTE
+	frame.push(parseInt(state.toString(16).substring(1), 16)); // PWM SEGUNDO BYTE
+
+	for(i = 3; i < 20; i++){
+		checksum += frame[i];
+	}
+	//console.log("Checksum: " + checksum.toString(16));
+	// 54F to string le quitas el 5 y se lo restas a FF
+	checksum = parseInt(checksum.toString(16).substring(1),16);
+	//console.log("Checksum: " + checksum.toString(16));
+	checksum = 0xFF - checksum;
+	//console.log("Resto 0xff y da: " + checksum);
+	frame.push(checksum);
+
+	return frame;
+}

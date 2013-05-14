@@ -1,0 +1,11 @@
+curl -i -X POST -H 'Content-Type: application/json' -d '{"name": "Sala"}' http://localhost:3000/space
+curl -i -X POST -H 'Content-Type: application/json' -d '{"name": "Cuarto Principal"}' http://localhost:3000/space
+
+curl -i -X POST -H 'Content-Type: application/json' -d '{"name": "Temperatura", "data_type": "number", "units": "C"}' http://localhost:3000/protocol
+curl -i -X POST -H 'Content-Type: application/json' -d '{"name": "Dimmer", "min_value": "0", "max_value": "1023", "data_type": "number", "units": ""}' http://localhost:3000/protocol
+
+DEVICE POST DATA
+curl -i -X POST -H 'Content-Type: application/json' -d '{"value": "26"}' http://localhost:3000/device/add_data/5191a4e857d674aaac00011b
+
+POST DATA TO DEVICE
+curl -i -X POST -H 'Content-Type: application/json' -d '{"value": 5}' http://localhost:3000/device/data/5191a4e857d674aaac00011b

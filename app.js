@@ -19,13 +19,14 @@ app.configure(function () {
 app.get('/devices', domo.getDevices);
 
 app.post('/device', domo.addDevice); // Create
-app.get('/device', domo.getDevice); // Read
+app.get('/device/:id', domo.getDevice); // Read
 app.put('/device/:id', domo.updateDevice); // Update
 app.delete('/device/:id', domo.deleteDevice); // Delete
 
 app.get('/device/data/:id', domo.getDeviceData);
 app.get('/device/ask_data/:id', domo.getDeviceCurrentData);
 app.post('/device/data/:id', domo.pushData);
+app.post('/device/add_data/:id', domo.addData);
 
 /* Rules
 ---------------------- */
