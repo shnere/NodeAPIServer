@@ -16,12 +16,6 @@ db.open(function(err, p_client) {
   db.authenticate('domo', 'arigato', function(err) {
    //Change error handler when going into production 
    if (err) console.log(err);
-    
-    var collection = new mongo.Collection(db, 'test_collection');
-    collection.find({}, {limit:10}).toArray(function(err, docs) {
-      //In an array, this will log all your documents you added before we tested this
-      console.dir(docs);
-    });
   });
 });
 
@@ -106,7 +100,49 @@ exports.getDeviceData = function(req, res) {
 	});
 }
 
-exports.getDeviceCurrentData = function(req, res) {}
+exports.getDeviceCurrentData = function(req, res) {
+	var serialPort = new serialport.SerialPort(default_port, {
+		baudRate: 9600,
+		dataBits: 8,
+		parity: 'none',
+		stopBits: 1,
+		flowControl: false,
+		parser: serialport.parsers.raw
+	});
+
+	serialPort.on("open", function () {
+		console.log('open');
+		var start = false;
+		var nuestroArr = Array();
+		var cuenta = 0;
+		serialPort.on('data', function(data) {
+
+			for(var i = 0; i < data.length; i++){
+				if(start == false){
+					if(data[i] == 0x7E){
+						start = true;
+					}
+				}else{
+					if(data[i] == 0x7E){
+						start = false;
+
+						// eval
+						var checksum = nuestroArr[nuestroArr.length - 1];
+						//console.log("Checksum = "+checksum);
+						var temp1 = nuestroArr[nuestroArr.length - 2] + (nuestroArr[nuestroArr.length - 3]<<8);
+						//console.log("Temp1 = "+temp1);
+						var temp2 = temp1 / 2;
+						console.log("Temp = "+temp2);
+						res.jsonp({'value': temp2});
+						serialPort.close();
+					}
+					nuestroArr.push(data[i]);
+				}
+			}
+
+		});
+	});
+}
 
 exports.pushData = function(req, res) {
 	var id = req.params.id;
